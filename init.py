@@ -50,17 +50,9 @@ from docopt import docopt
 
 from applications.OS import *
 from utils import *
-from git import *
+from git import GitHubWrapper
 
-# Helpers
-
-def start_sshd():
-    local('sudo systemsetup -setremotelogin on')
-
-# Meta
-def install_dependencies():
-    # run("pip install ipython")
-    pass
+GA = {}
 
 # Configuration Settings
 
@@ -124,14 +116,22 @@ def setup_dependencies(course):
     return deps
 
 def setup_github():
-    hasAccount = True if args['-u'] else promptExistingAccount()
+    GH = GitHubWrapper()
+    hasAccount = True if args['-u'] else GH.promptExistingAccount()
     if not hasAccount:
-        createGitHubAccount()
-    username, password = args['-u'], args['-p'] \
+        GH.newAccount()
+    accountDetails = [args['-u'], args['-p']] \
         if args['-u'] and args['-p'] \
-        else promptAccountDetails()
+        else GH.promptAccountDetails(args['-u'])
+    username, password = accountDetails[0], accountDetails[1]
+    GA['REPO'] = GH.studentRepo(GA['COURSE'], GA['LOCATION'], GA['BATCH']);
+    GitHubClient = GH.auth(username, password, GA['REPO'])
+    oct_repo = GitHubClient.repos.get()
+    print oct_repo
+    # gastudents = GitHubClient.repos.get(user='ga-students')
+    # print gastudents.repos.list()
 
-def advanced_setup():
+def advanced_setup(deps):
     pass
 
 def setup_application():
@@ -160,20 +160,25 @@ def select_batch():
         option = input('\n' + warning + '\n\n' + prompt)
     return int(option)
 
+# Helpers
+
+def start_sshd():
+    local('sudo systemsetup -setremotelogin on')
+
 # Initialise 
 
 def main():
-    OS = setup_os()
-    COURSE = setup_course()
-    LOCATION = setup_location()
-    BATCH = setup_batch()
-    DEPENDENCIES = setup_dependencies(COURSE)
+    GA['OS'] = setup_os()
+    GA['COURSE'] = setup_course()
+    GA['LOCATION'] = setup_location()
+    GA['BATCH'] = setup_batch()
+    GA['DEPENDENCIES'] = setup_dependencies(GA['COURSE'])
     
     if args['advanced']:
-        DEPENDENCIES = advanced_setup(DEPENDENCIES)
-    [install() for install in DEPENDENCIES]
+        GA['DEPENDENCIES'] = advanced_setup(GA['DEPENDENCIES'])
+    [install() for install in GA['DEPENDENCIES']]
     
-    GITHUB = setup_github()
+    GA['GITHUB'] = setup_github()
 
 if __name__ == "__main__":
     args = docopt(__doc__, argv=None, help=False, version=None, options_first=False)
@@ -181,7 +186,7 @@ if __name__ == "__main__":
     if args['install']:
         main()
     elif args['advanced']:
-        advanced_setup()
+        advanced_setup([])
     elif args['setup']:
         setup_application()
     else:
